@@ -115,7 +115,7 @@ Then the new page will work at:
 
 Lead forms are separated by customer intent:
 
-- `/book-appointment` - appointment leads with preferred date/time fields
+- `/book-appointment` - appointment leads with a calendar date picker and time slot selection
 - `/request-quote` - quote leads for garments, packages and delivery questions
 - `/contact` - general enquiry page that routes customers to the right form
 

@@ -85,6 +85,8 @@ const detailOptions = [
   { title: "Finishing", items: ["Lining color", "Buttons", "Contrast stitching", "Name label and reorder notes"] }
 ];
 
+const appointmentSlots = ["10:00 AM", "11:30 AM", "1:00 PM", "2:30 PM", "4:00 PM", "5:30 PM", "7:00 PM"];
+
 const categoryGuides = {
   suits: {
     title: "How to choose a custom suit",
@@ -326,6 +328,38 @@ function packageGrid() {
   `).join("")}</div>`;
 }
 
+function appointmentScheduler() {
+  return `<div class="appointment-scheduler" data-scheduler>
+    <div class="scheduler-summary">
+      <div class="scheduler-logo">JOE SUIT</div>
+      <span class="eyebrow">Private Fitting</span>
+      <h3>Book your private appointment</h3>
+      <p>Choose a date and time for your fitting at Platinum Fashion Mall, Bangkok.</p>
+      <div class="scheduler-facts">
+        <span>1 hr fitting</span>
+        <span>Bangkok Time (GMT+7)</span>
+        <span>Open daily 10am-8pm</span>
+      </div>
+    </div>
+    <div class="scheduler-picker">
+      <h3>Select a Date & Time</h3>
+      <div class="calendar-head">
+        <button type="button" aria-label="Previous month" data-calendar-prev>‹</button>
+        <strong data-calendar-label></strong>
+        <button type="button" aria-label="Next month" data-calendar-next>›</button>
+      </div>
+      <div class="calendar-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+      <div class="calendar-grid" data-calendar-days></div>
+      <div class="selected-slot">
+        <span data-selected-date-label>Select a date</span>
+        <div class="time-slots" data-time-slots></div>
+      </div>
+      <input type="hidden" name="preferred_date" data-selected-date-input>
+      <input type="hidden" name="preferred_time" data-selected-time-input>
+    </div>
+  </div>`;
+}
+
 function leadForm(defaultService = "Request a suit quote", leadType = "quote") {
   const context = readLeadContext();
   const source = [context.utm_campaign, context.utm_adgroup || context.ad_group, context.utm_term].filter(Boolean).join(" / ");
@@ -335,6 +369,7 @@ function leadForm(defaultService = "Request a suit quote", leadType = "quote") {
   if (!serviceOptions.includes(defaultService)) serviceOptions.unshift(defaultService);
 
   return `<form class="form lead-form" id="contact-form" data-default-service="${defaultService}" data-lead-type="${leadType}">
+    ${leadType === "appointment" ? appointmentScheduler() : ""}
     <div class="field-grid">
       <input name="name" required placeholder="Your name">
       <input name="email" type="email" required placeholder="Email">
@@ -356,7 +391,6 @@ function leadForm(defaultService = "Request a suit quote", leadType = "quote") {
         <option>Wedding / group quote</option>
       </select>
     </div>
-    ${leadType === "appointment" ? `<div class="field-grid"><input name="preferred_date" placeholder="Preferred date"><input name="preferred_time" placeholder="Preferred time"></div>` : ""}
     <textarea name="message" placeholder="${leadType === "appointment" ? "Tell us your travel dates, garment type, and who is coming to the fitting." : "Tell us what you need, your travel dates, or how many garments you want."}"></textarea>
     <input type="hidden" name="lead_source" value="${source}">
     <button class="btn dark" type="submit">${leadType === "appointment" ? "REQUEST APPOINTMENT" : "SEND ENQUIRY"}</button>
@@ -633,6 +667,115 @@ function adsHub() {
   </div></section>`;
 }
 
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function fromDateKey(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatMonth(date) {
+  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function formatAppointmentDate(date) {
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+function bindScheduler() {
+  document.querySelectorAll("[data-scheduler]").forEach((scheduler) => {
+    const today = startOfDay(new Date());
+    const maxDate = addDays(today, 60);
+    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    let visibleMonth = new Date(currentMonth);
+    let selectedDate = new Date(today);
+    let selectedTime = appointmentSlots[0];
+
+    const label = scheduler.querySelector("[data-calendar-label]");
+    const days = scheduler.querySelector("[data-calendar-days]");
+    const slots = scheduler.querySelector("[data-time-slots]");
+    const dateLabel = scheduler.querySelector("[data-selected-date-label]");
+    const dateInput = scheduler.querySelector("[data-selected-date-input]");
+    const timeInput = scheduler.querySelector("[data-selected-time-input]");
+    const prev = scheduler.querySelector("[data-calendar-prev]");
+    const next = scheduler.querySelector("[data-calendar-next]");
+
+    function updateFields() {
+      dateInput.value = toDateKey(selectedDate);
+      timeInput.value = selectedTime;
+      dateLabel.textContent = `${formatAppointmentDate(selectedDate)} at ${selectedTime}`;
+    }
+
+    function renderSlots() {
+      slots.innerHTML = appointmentSlots.map((slot) => `<button type="button" class="time-slot ${slot === selectedTime ? "selected" : ""}" data-time="${slot}">${slot}</button>`).join("");
+      slots.querySelectorAll("[data-time]").forEach((button) => {
+        button.onclick = () => {
+          selectedTime = button.dataset.time;
+          renderSlots();
+          updateFields();
+        };
+      });
+      updateFields();
+    }
+
+    function renderCalendar() {
+      const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+      const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+      const blanks = Array.from({ length: firstDay.getDay() }, () => "<span></span>");
+      const dayButtons = [];
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
+        const disabled = date < today || date > maxDate;
+        const classes = [
+          "calendar-day",
+          toDateKey(date) === toDateKey(today) ? "today" : "",
+          toDateKey(date) === toDateKey(selectedDate) ? "selected" : ""
+        ].filter(Boolean).join(" ");
+
+        dayButtons.push(`<button type="button" class="${classes}" data-date="${toDateKey(date)}" ${disabled ? "disabled" : ""}>${day}</button>`);
+      }
+
+      label.textContent = formatMonth(visibleMonth);
+      days.innerHTML = blanks.concat(dayButtons).join("");
+      prev.disabled = visibleMonth.getFullYear() === currentMonth.getFullYear() && visibleMonth.getMonth() === currentMonth.getMonth();
+
+      days.querySelectorAll("[data-date]").forEach((button) => {
+        button.onclick = () => {
+          selectedDate = fromDateKey(button.dataset.date);
+          renderCalendar();
+          renderSlots();
+        };
+      });
+    }
+
+    prev.onclick = () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+      renderCalendar();
+    };
+
+    next.onclick = () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+      renderCalendar();
+    };
+
+    renderCalendar();
+    renderSlots();
+  });
+}
+
 function render() {
   const path = location.pathname.replace(/\/$/, "") || "/";
   readLeadContext();
@@ -652,6 +795,8 @@ function render() {
 }
 
 function bind() {
+  bindScheduler();
+
   document.querySelectorAll("[data-link]").forEach((anchor) => {
     anchor.onclick = (event) => {
       const url = new URL(anchor.href);
@@ -679,15 +824,26 @@ function bind() {
       const data = new FormData(form);
       const service = data.get("service") || form.dataset.defaultService || "Lead enquiry";
       const leadType = form.dataset.leadType || "general";
+      const preferredDate = data.get("preferred_date") || "";
+      const preferredTime = data.get("preferred_time") || "";
+      const leadDetails = { service, lead_type: leadType, preferred_date: preferredDate, preferred_time: preferredTime };
+
+      if (leadType === "appointment" && (!preferredDate || !preferredTime)) {
+        const notice = form.querySelector(".notice");
+        notice.textContent = "Please select an appointment date and time first.";
+        notice.classList.add("show");
+        return;
+      }
+
       form.querySelector(".notice").classList.add("show");
-      trackConversion("lead_form_submit", { service, lead_type: leadType, value: 5 });
-      if (leadType === "appointment") trackConversion("appointment_form_submit", { service, lead_type: leadType, value: 8 });
-      if (leadType === "quote") trackConversion("quote_form_submit", { service, lead_type: leadType, value: 6 });
-      if (leadType === "general") trackConversion("general_form_submit", { service, lead_type: leadType, value: 4 });
-      if (/appointment|wedding|express|fitting/i.test(service)) trackConversion("appointment_request", { service, lead_type: leadType, value: 5 });
-      if (/quote|shirt|ladies|shipping|reorder|suit/i.test(service)) trackConversion("quote_request", { service, lead_type: leadType, value: 5 });
-      if (/wedding|groom|group/i.test(service)) trackConversion("wedding_lead", { service, lead_type: leadType, value: 8 });
-      if (/remote|shipping|reorder|measurement/i.test(service)) trackConversion("remote_order_lead", { service, lead_type: leadType, value: 6 });
+      trackConversion("lead_form_submit", { ...leadDetails, value: 5 });
+      if (leadType === "appointment") trackConversion("appointment_form_submit", { ...leadDetails, value: 8 });
+      if (leadType === "quote") trackConversion("quote_form_submit", { ...leadDetails, value: 6 });
+      if (leadType === "general") trackConversion("general_form_submit", { ...leadDetails, value: 4 });
+      if (/appointment|wedding|express|fitting/i.test(service)) trackConversion("appointment_request", { ...leadDetails, value: 5 });
+      if (/quote|shirt|ladies|shipping|reorder|suit/i.test(service)) trackConversion("quote_request", { ...leadDetails, value: 5 });
+      if (/wedding|groom|group/i.test(service)) trackConversion("wedding_lead", { ...leadDetails, value: 8 });
+      if (/remote|shipping|reorder|measurement/i.test(service)) trackConversion("remote_order_lead", { ...leadDetails, value: 6 });
     };
   }
 }
