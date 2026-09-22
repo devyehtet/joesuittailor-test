@@ -21,6 +21,8 @@ Open the URL shown in Terminal. Default is `http://127.0.0.1:4173`. If the port 
 
 - `/`
 - `/services`
+- `/book-appointment`
+- `/request-quote`
 - `/men/suits`, `/men/shirts`, `/men/tuxedos`, `/men/jackets`, `/men/pants`, `/men/vests`
 - `/women/suits`, `/women/blouses`, `/women/dresses`, `/women/coats`
 - `/custom-made`, `/wedding`, `/fabrics`, `/packages`
@@ -49,10 +51,14 @@ The site stores UTM, `gclid`, `gbraid`, and `wbraid` values in the browser sessi
 Primary goals:
 
 - `lead_form_submit` - contact form submitted
+- `appointment_form_submit` - dedicated appointment form submitted
+- `quote_form_submit` - dedicated quote form submitted
 - `whatsapp_click` - WhatsApp button clicked
 - `phone_call` - phone link clicked
 - `appointment_request` - appointment CTA or appointment service submitted
 - `quote_request` - quote/package CTA or quote service submitted
+- `wedding_lead` - wedding or groom/group lead submitted
+- `remote_order_lead` - remote reorder, shipping or measurement lead submitted
 
 Secondary / observation goals:
 
@@ -74,7 +80,12 @@ window.JST_ADS_CONFIG = {
     whatsapp_click: "WHATSAPP_LABEL",
     phone_call: "PHONE_LABEL",
     measurement_start: "MEASUREMENT_LABEL",
-    ad_landing_view: "LANDING_VIEW_LABEL"
+    ad_landing_view: "LANDING_VIEW_LABEL",
+    appointment_form_submit: "APPOINTMENT_FORM_LABEL",
+    quote_form_submit: "QUOTE_FORM_LABEL",
+    general_form_submit: "GENERAL_FORM_LABEL",
+    wedding_lead: "WEDDING_LABEL",
+    remote_order_lead: "REMOTE_LABEL"
   }
 };
 ```
@@ -99,6 +110,16 @@ Then the new page will work at:
 ```text
 /ads/your-new-slug
 ```
+
+## Lead Form Split
+
+Lead forms are separated by customer intent:
+
+- `/book-appointment` - appointment leads with preferred date/time fields
+- `/request-quote` - quote leads for garments, packages and delivery questions
+- `/contact` - general enquiry page that routes customers to the right form
+
+Every form still fires `lead_form_submit`, but the dedicated forms also fire `appointment_form_submit` or `quote_form_submit` so Google Ads, GTM, GA4 or a CRM can report them separately.
 
 ## Important
 
