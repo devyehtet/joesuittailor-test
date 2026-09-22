@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Open Joe Suit Website",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server.mjs",
+      "serverReadyAction": {
+        "pattern": "running at (http://localhost:[0-9]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

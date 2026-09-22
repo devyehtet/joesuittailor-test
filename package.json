@@ -1,0 +1,11 @@
+{
+  "name": "joe-suit-tailor-clone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Responsive static recreation of the Joe Suit Tailor website",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "check": "node --check dist/app.js"
+  }
+}

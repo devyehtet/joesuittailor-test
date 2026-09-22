@@ -1,0 +1,12 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "files.exclude": {
+      ".openai": true
+    },
+    "editor.formatOnSave": true,
+    "liveServer.settings.root": "/dist"
+  }
+}
