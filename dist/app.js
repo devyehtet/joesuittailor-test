@@ -61,12 +61,12 @@ const packages = [
 ];
 
 const customerPaths = [
-  { title: "I need a business suit", route: "/men/suits", copy: "Start with navy, charcoal or grey. Choose a conservative lapel, practical pockets and durable cloth.", goal: "quote_request" },
-  { title: "I am planning a wedding", route: "/wedding", copy: "Compare groom suits, tuxedos, group coordination, wedding shirts and timeline planning.", goal: "appointment_request" },
-  { title: "I want shirts made", route: "/men/shirts", copy: "Browse collar, cuff, fit, fabric and monogram choices for business or casual shirts.", goal: "quote_request" },
-  { title: "I need ladies tailoring", route: "/women/suits", copy: "Explore suits, blazers, dresses, blouses and coats with proportion-focused fitting.", goal: "appointment_request" },
-  { title: "I am visiting Bangkok soon", route: "/book-appointment", copy: "Book a fitting slot and share travel dates so the team can advise a realistic schedule.", goal: "appointment_request" },
-  { title: "I want remote delivery", route: "/measurements", copy: "Use measurement guidance and send garment goals for worldwide delivery or reorders.", goal: "measurement_start" }
+  { title: "I need a business suit", route: "/men/suits", image: "men-suits-1-s-hMmhZu.jpg", copy: "Start with navy, charcoal or grey. Choose a conservative lapel, practical pockets and durable cloth.", cta: "Browse suits", goal: "quote_request" },
+  { title: "I am planning a wedding", route: "/wedding", image: "category-wedding-DRNUCz3x.jpg", copy: "Compare groom suits, tuxedos, group coordination, wedding shirts and timeline planning.", cta: "Plan wedding look", goal: "appointment_request" },
+  { title: "I want shirts made", route: "/men/shirts", image: "men-shirts-1-CppgV8tf.jpg", copy: "Browse collar, cuff, fit, fabric and monogram choices for business or casual shirts.", cta: "View shirts", goal: "quote_request" },
+  { title: "I need ladies tailoring", route: "/women/suits", image: "women-suit-1-Bjc_oU61.jpg", copy: "Explore suits, blazers, dresses, blouses and coats with proportion-focused fitting.", cta: "See womenswear", goal: "appointment_request" },
+  { title: "I am visiting Bangkok soon", route: "/book-appointment", image: assets.shop, copy: "Book a fitting slot and share travel dates so the team can advise a realistic schedule.", cta: "Book fitting", goal: "appointment_request" },
+  { title: "I want remote delivery", route: "/measurements", image: assets.measure, copy: "Use measurement guidance and send garment goals for worldwide delivery or reorders.", cta: "Start remote order", goal: "measurement_start" }
 ];
 
 const fabricOptions = [
@@ -443,11 +443,18 @@ function conversionPanel(defaultService = "Request a suit quote", leadType = "qu
 }
 
 function customerPathGrid() {
-  return `<div class="path-grid">${customerPaths.map((item) => `
+  return `<div class="path-grid">${customerPaths.map((item, index) => `
     <a class="path-card" href="${item.route}" data-link data-goal="${item.goal}">
-      <span class="eyebrow">Browse by need</span>
-      <h3>${item.title}</h3>
-      <p>${item.copy}</p>
+      <div class="path-card-media">
+        <img loading="lazy" src="${img(item.image)}" alt="${item.title}">
+        <span class="path-number">${String(index + 1).padStart(2, "0")}</span>
+      </div>
+      <div class="path-card-body">
+        <span class="eyebrow">Browse by need</span>
+        <h3>${item.title}</h3>
+        <p>${item.copy}</p>
+        <span class="path-card-cta">${item.cta}</span>
+      </div>
     </a>
   `).join("")}</div>`;
 }
@@ -548,7 +555,7 @@ function home() {
   ${leadBar()}
   ${trustStrip()}
   <section class="section alt">
-    <div class="section-head"><span class="eyebrow">Start Here</span><h2 class="section-title">Choose what you want to see</h2><p>Customers can browse by need instead of guessing which page to open first.</p></div>
+    <div class="section-head start-head"><span class="eyebrow">Start Here</span><h2 class="section-title">Choose what you want to see</h2><p>Customers can browse by need instead of guessing which page to open first.</p></div>
     ${customerPathGrid()}
   </section>
   <section class="section">
