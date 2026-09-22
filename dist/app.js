@@ -345,14 +345,15 @@ function serviceGrid() {
 }
 
 function packageGrid() {
-  return `<div class="package-grid">${packages.map((item) => `
-    <article class="package-card">
-      <span class="eyebrow">Package</span>
+  return `<div class="package-grid package-grid-upgraded">${packages.map((item, index) => `
+    <article class="package-card package-card-upgraded ${item.goal === "appointment_request" ? "featured" : ""}">
+      <div class="package-top"><span>Package</span><b>${String(index + 1).padStart(2, "0")}</b></div>
       <h3>${item.name}</h3>
       <strong>${item.items}</strong>
       <p>${item.bestFor}</p>
-      <small>${item.fabrics}<br>${item.timeline}</small>
-      ${btn(item.goal === "appointment_request" ? "/book-appointment" : "/request-quote", item.goal === "appointment_request" ? "Book Appointment" : "Request Quote", "dark", item.goal, `data-service="${item.name}"`)}
+      <div class="package-detail-row"><span>Cloth</span><em>${item.fabrics}</em></div>
+      <div class="package-detail-row"><span>Timing</span><em>${item.timeline}</em></div>
+      ${btn(item.goal === "appointment_request" ? "/book-appointment" : "/request-quote", item.goal === "appointment_request" ? "Book Appointment" : "Request Quote", item.goal === "appointment_request" ? "gold package-cta" : "dark package-cta", item.goal, `data-service="${item.name}"`)}
     </article>
   `).join("")}</div>`;
 }
@@ -460,22 +461,39 @@ function customerPathGrid() {
 }
 
 function fabricGuide() {
-  return `<div class="fabric-grid">${fabricOptions.map((item) => `
-    <article>
-      <span class="eyebrow">${item.bestFor}</span>
-      <h3>${item.name}</h3>
-      <p>${item.feel}</p>
+  return `<div class="fabric-showcase">
+    <article class="fabric-feature" style="background-image:url('${img(assets.fabric)}')">
+      <span class="eyebrow">Fabric Library</span>
+      <h3>Choose cloth by climate, occasion and how it should move.</h3>
+      <p>Use these notes before asking for a quote, then refine color, weight and texture during the fitting.</p>
     </article>
-  `).join("")}</div>`;
+    <div class="fabric-grid">${fabricOptions.map((item, index) => `
+      <article class="fabric-card">
+        <span class="fabric-swatch"></span>
+        <span class="fabric-index">${String(index + 1).padStart(2, "0")}</span>
+        <span class="eyebrow">${item.bestFor}</span>
+        <h3>${item.name}</h3>
+        <p>${item.feel}</p>
+      </article>
+    `).join("")}</div>
+  </div>`;
 }
 
 function detailGuide() {
-  return `<div class="detail-grid">${detailOptions.map((group) => `
-    <article>
-      <h3>${group.title}</h3>
-      <ul>${group.items.map((item) => `<li>${item}</li>`).join("")}</ul>
+  return `<div class="detail-showcase">
+    <article class="detail-panel" style="background-image:url('${img(assets.atelier)}')">
+      <span class="eyebrow">Made Personal</span>
+      <h3>Small choices make the garment feel like yours.</h3>
+      <p>Bring reference photos or a favourite garment. The team will guide proportions, finishing and practical wearing details.</p>
     </article>
-  `).join("")}</div>`;
+    <div class="detail-grid">${detailOptions.map((group, index) => `
+      <article class="detail-card">
+        <span class="detail-index">${String(index + 1).padStart(2, "0")}</span>
+        <h3>${group.title}</h3>
+        <ul>${group.items.map((item) => `<li>${item}</li>`).join("")}</ul>
+      </article>
+    `).join("")}</div>
+  </div>`;
 }
 
 function appointmentPage() {
