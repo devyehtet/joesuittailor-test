@@ -1,6 +1,6 @@
 # Joe Suit Tailor Website
 
-Static tailor shop website for VS Code, local preview, GitHub, Netlify, or any static host.
+Tailor shop website with a small Node backend for lead and appointment capture.
 
 ## Run Locally
 
@@ -10,12 +10,16 @@ npm run dev
 
 Open the URL shown in Terminal. Default is `http://127.0.0.1:4173`. If the port is busy, the server will try the next port.
 
+The backend API runs from the same command.
+
 ## Files
 
 - `dist/index.html` - Header, menu, footer, SEO metadata, Google Ads config placeholder
 - `dist/styles.css` - Layout, responsive design, service cards, lead forms, ad landing pages
 - `dist/app.js` - Page content, routes, products, conversion tracking, ad group landing pages
 - `dist/assets/` - Website images
+- `server.mjs` - Static web server plus lead/appointment API
+- `data/leads.json` - Local lead storage created by the server and ignored by Git
 
 ## Public Pages
 
@@ -27,6 +31,7 @@ Open the URL shown in Terminal. Default is `http://127.0.0.1:4173`. If the port 
 - `/women/suits`, `/women/blouses`, `/women/dresses`, `/women/coats`
 - `/custom-made`, `/wedding`, `/fabrics`, `/packages`
 - `/gallery`, `/journal`, `/measurements`, `/faq`, `/about`, `/contact`
+- `/admin` - Lead and appointment dashboard
 
 ## Google Ads Landing Pages
 
@@ -121,6 +126,47 @@ Lead forms are separated by customer intent:
 
 Every form still fires `lead_form_submit`, but the dedicated forms also fire `appointment_form_submit` or `quote_form_submit` so Google Ads, GTM, GA4 or a CRM can report them separately.
 
+## Backend Lead Storage
+
+Lead and appointment forms submit to:
+
+```text
+POST /api/leads
+```
+
+The server saves records into `data/leads.json`. Each lead includes:
+
+- contact details
+- lead type: `appointment`, `quote`, or `general`
+- appointment date and time when selected
+- service, timeline, budget and message
+- page path, ad group and UTM/GCLID context
+- follow-up status and internal notes
+
+## Admin Dashboard
+
+Open:
+
+```text
+http://127.0.0.1:4173/admin
+```
+
+The dashboard lets you:
+
+- view all leads
+- filter appointments, quotes and general enquiries
+- see Google Ads/UTM source data
+- update lead status: `new`, `contacted`, `booked`, `closed`
+- save internal notes
+
+For production or any shared server, start the server with an admin PIN:
+
+```bash
+ADMIN_PIN=change-this-pin npm run dev
+```
+
+Then enter that PIN on `/admin`. Without `ADMIN_PIN`, the dashboard is open to anyone who can reach the Node server.
+
 ## Important
 
-The contact form is a front-end demo interaction. It tracks conversion events, but it does not send data to a database or email inbox yet. For production lead capture, connect the form to a backend, Google Forms, Netlify Forms, Formspree, HubSpot, or another CRM/form service.
+The backend only runs on a Node server. GitHub can store the code, but GitHub Pages cannot run `server.mjs` or save `data/leads.json`. Deploy to a Node-capable host such as Render, Railway, Fly.io, a VPS, or another server if you need live lead capture online.

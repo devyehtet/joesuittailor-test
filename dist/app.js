@@ -86,6 +86,7 @@ const detailOptions = [
 ];
 
 const appointmentSlots = ["10:00 AM", "11:30 AM", "1:00 PM", "2:30 PM", "4:00 PM", "5:30 PM", "7:00 PM"];
+const leadStatuses = ["new", "contacted", "booked", "closed"];
 
 const categoryGuides = {
   suits: {
@@ -237,6 +238,34 @@ function readLeadContext() {
 function currentAdGroupSlug() {
   const match = location.pathname.match(/^\/ads\/([^/]+)/);
   return match ? match[1] : "";
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
+}
+
+function formatLeadDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+}
+
+async function parseApiResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: "Backend API did not return JSON. Run the site with npm run dev or deploy it to a Node host." };
+  }
 }
 
 function setupGoogleAds() {
@@ -667,6 +696,40 @@ function adsHub() {
   </div></section>`;
 }
 
+function adminPage() {
+  return `${pageHero("LEAD ADMIN", "Backend dashboard", assets.fabric)}
+  <section class="section admin-dashboard" data-admin-dashboard>
+    <div class="admin-shell">
+      <div class="section-head">
+        <span class="eyebrow">Lead Inbox</span>
+        <h2 class="section-title">Appointments and enquiries</h2>
+        <p>Review website leads, separate appointment requests from quote enquiries and update follow-up status.</p>
+      </div>
+      <div class="admin-stats">
+        <article><span>Total</span><strong data-admin-count="total">0</strong></article>
+        <article><span>Appointments</span><strong data-admin-count="appointment">0</strong></article>
+        <article><span>Quotes</span><strong data-admin-count="quote">0</strong></article>
+        <article><span>General</span><strong data-admin-count="general">0</strong></article>
+        <article><span>New</span><strong data-admin-count="new">0</strong></article>
+      </div>
+      <div class="admin-toolbar">
+        <div class="filterbar admin-filters">
+          <button type="button" class="active" data-admin-filter="all">All</button>
+          <button type="button" data-admin-filter="appointment">Appointments</button>
+          <button type="button" data-admin-filter="quote">Quotes</button>
+          <button type="button" data-admin-filter="general">General</button>
+        </div>
+        <div class="admin-actions">
+          <input type="password" data-admin-pin placeholder="Admin PIN">
+          <button class="btn dark compact" type="button" data-admin-refresh>Refresh</button>
+        </div>
+      </div>
+      <div class="admin-status" data-admin-status>Loading leads...</div>
+      <div class="lead-list" data-admin-list></div>
+    </div>
+  </section>`;
+}
+
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -776,6 +839,151 @@ function bindScheduler() {
   });
 }
 
+function leadCard(lead) {
+  const leadType = lead.lead_type === "appointment" ? "Appointment" : lead.lead_type === "quote" ? "Quote" : "General";
+  const appointment = [lead.preferred_date, lead.preferred_time].filter(Boolean).join(" at ");
+  const contact = [lead.email, lead.phone].filter(Boolean).join(" · ");
+  const source = [lead.page_path, lead.ad_group, lead.lead_source].filter(Boolean).join(" · ");
+  const utm = Object.entries(lead.utm || {})
+    .filter(([, value]) => value)
+    .map(([key, value]) => `<span>${escapeHtml(key)}: ${escapeHtml(value)}</span>`)
+    .join("");
+
+  return `<article class="lead-card">
+    <div class="lead-card-head">
+      <div>
+        <span class="lead-badge ${escapeHtml(lead.lead_type)}">${leadType}</span>
+        <h3>${escapeHtml(lead.name)}</h3>
+        <p>${escapeHtml(contact || "No contact details")}</p>
+      </div>
+      <small>${escapeHtml(formatLeadDate(lead.created_at))}</small>
+    </div>
+    <div class="lead-meta">
+      <span><strong>Service</strong>${escapeHtml(lead.service || "-")}</span>
+      <span><strong>Timeline</strong>${escapeHtml(lead.timeline || "-")}</span>
+      <span><strong>Budget</strong>${escapeHtml(lead.budget || "-")}</span>
+      ${appointment ? `<span><strong>Appointment</strong>${escapeHtml(appointment)}</span>` : ""}
+    </div>
+    ${lead.message ? `<p class="lead-message">${escapeHtml(lead.message)}</p>` : ""}
+    ${source ? `<div class="lead-source"><strong>Source</strong><span>${escapeHtml(source)}</span></div>` : ""}
+    ${utm ? `<div class="utm-row">${utm}</div>` : ""}
+    <div class="lead-update">
+      <select aria-label="Lead status" data-lead-status="${escapeHtml(lead.id)}">
+        ${leadStatuses.map((status) => `<option value="${status}"${lead.status === status ? " selected" : ""}>${status}</option>`).join("")}
+      </select>
+      <textarea aria-label="Lead notes" data-lead-notes="${escapeHtml(lead.id)}" placeholder="Internal notes">${escapeHtml(lead.notes || "")}</textarea>
+      <button type="button" class="btn dark compact" data-save-lead="${escapeHtml(lead.id)}">Save</button>
+    </div>
+  </article>`;
+}
+
+function bindAdmin() {
+  const dashboard = document.querySelector("[data-admin-dashboard]");
+  if (!dashboard) return;
+
+  const list = dashboard.querySelector("[data-admin-list]");
+  const statusBox = dashboard.querySelector("[data-admin-status]");
+  const pinInput = dashboard.querySelector("[data-admin-pin]");
+  const refresh = dashboard.querySelector("[data-admin-refresh]");
+  let activeFilter = "all";
+
+  pinInput.value = localStorage.getItem("jstAdminPin") || "";
+
+  function adminHeaders(includeJson = false) {
+    const headers = includeJson ? { "Content-Type": "application/json" } : {};
+    const pin = pinInput.value.trim();
+    if (pin) headers["X-Admin-Pin"] = pin;
+    return headers;
+  }
+
+  function setAdminStatus(message, tone = "") {
+    statusBox.textContent = message;
+    statusBox.dataset.tone = tone;
+  }
+
+  function updateSummary(summary = {}) {
+    dashboard.querySelectorAll("[data-admin-count]").forEach((item) => {
+      item.textContent = summary[item.dataset.adminCount] || 0;
+    });
+  }
+
+  function bindLeadUpdates() {
+    list.querySelectorAll("[data-save-lead]").forEach((button) => {
+      button.onclick = async () => {
+        const id = button.dataset.saveLead;
+        const status = list.querySelector(`[data-lead-status="${id}"]`).value;
+        const notes = list.querySelector(`[data-lead-notes="${id}"]`).value;
+        button.disabled = true;
+        setAdminStatus("Saving lead...");
+
+        try {
+          const response = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            headers: adminHeaders(true),
+            body: JSON.stringify({ status, notes })
+          });
+          const result = await parseApiResponse(response);
+          if (!response.ok) throw new Error(result.error || "Unable to update this lead.");
+          setAdminStatus("Lead updated.", "success");
+          await loadLeads();
+        } catch (error) {
+          setAdminStatus(error.message, "error");
+        } finally {
+          button.disabled = false;
+        }
+      };
+    });
+  }
+
+  async function loadLeads() {
+    setAdminStatus("Loading leads...");
+    list.innerHTML = "";
+
+    try {
+      const query = activeFilter === "all" ? "" : `?type=${encodeURIComponent(activeFilter)}`;
+      const response = await fetch(`/api/leads${query}`, { headers: adminHeaders() });
+      const result = await parseApiResponse(response);
+      if (!response.ok) throw new Error(result.error || "Unable to load leads.");
+
+      updateSummary(result.summary || {});
+      list.innerHTML = result.leads && result.leads.length
+        ? result.leads.map(leadCard).join("")
+        : `<div class="empty-state">No leads found for this filter yet.</div>`;
+
+      const securityNote = result.admin_pin_enabled ? "" : " ADMIN_PIN is not set, so this local dashboard is open on this server.";
+      setAdminStatus(`${(result.leads || []).length} lead${(result.leads || []).length === 1 ? "" : "s"} shown.${securityNote}`, result.admin_pin_enabled ? "success" : "warning");
+      bindLeadUpdates();
+    } catch (error) {
+      updateSummary({});
+      list.innerHTML = `<div class="empty-state">Backend API is unavailable. Start the Node server with npm run dev, then open /admin again.</div>`;
+      setAdminStatus(error.message, "error");
+    }
+  }
+
+  dashboard.querySelectorAll("[data-admin-filter]").forEach((button) => {
+    button.onclick = () => {
+      activeFilter = button.dataset.adminFilter;
+      dashboard.querySelectorAll("[data-admin-filter]").forEach((item) => item.classList.toggle("active", item === button));
+      loadLeads();
+    };
+  });
+
+  pinInput.onchange = () => {
+    localStorage.setItem("jstAdminPin", pinInput.value.trim());
+    loadLeads();
+  };
+
+  pinInput.onkeydown = (event) => {
+    if (event.key === "Enter") {
+      localStorage.setItem("jstAdminPin", pinInput.value.trim());
+      loadLeads();
+    }
+  };
+
+  refresh.onclick = loadLeads;
+  loadLeads();
+}
+
 function render() {
   const path = location.pathname.replace(/\/$/, "") || "/";
   readLeadContext();
@@ -786,6 +994,7 @@ function render() {
     app.innerHTML = catalog(gender, category);
   } else if (path === "/ads") app.innerHTML = adsHub();
   else if (/^\/ads\//.test(path)) app.innerHTML = adLanding(path.split("/")[2]);
+  else if (path === "/admin") app.innerHTML = adminPage();
   else app.innerHTML = standard(path);
 
   bind();
@@ -796,6 +1005,7 @@ function render() {
 
 function bind() {
   bindScheduler();
+  bindAdmin();
 
   document.querySelectorAll("[data-link]").forEach((anchor) => {
     anchor.onclick = (event) => {
@@ -819,31 +1029,76 @@ function bind() {
 
   const form = document.querySelector("#contact-form");
   if (form) {
-    form.onsubmit = (event) => {
+    form.onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(form);
       const service = data.get("service") || form.dataset.defaultService || "Lead enquiry";
       const leadType = form.dataset.leadType || "general";
       const preferredDate = data.get("preferred_date") || "";
       const preferredTime = data.get("preferred_time") || "";
-      const leadDetails = { service, lead_type: leadType, preferred_date: preferredDate, preferred_time: preferredTime };
+      const context = readLeadContext();
+      const notice = form.querySelector(".notice");
+      const submit = form.querySelector("button[type='submit']");
+      const payload = {
+        ...Object.fromEntries(data.entries()),
+        service: String(service),
+        lead_type: leadType,
+        preferred_date: String(preferredDate),
+        preferred_time: String(preferredTime),
+        page_path: location.pathname,
+        ad_group: currentAdGroupSlug() || context.ad_group || "",
+        utm: context,
+        referrer: document.referrer || ""
+      };
+      const leadDetails = {
+        service,
+        lead_type: leadType,
+        preferred_date: preferredDate,
+        preferred_time: preferredTime,
+        ad_group: payload.ad_group
+      };
 
       if (leadType === "appointment" && (!preferredDate || !preferredTime)) {
-        const notice = form.querySelector(".notice");
         notice.textContent = "Please select an appointment date and time first.";
+        notice.dataset.tone = "error";
         notice.classList.add("show");
         return;
       }
 
-      form.querySelector(".notice").classList.add("show");
-      trackConversion("lead_form_submit", { ...leadDetails, value: 5 });
-      if (leadType === "appointment") trackConversion("appointment_form_submit", { ...leadDetails, value: 8 });
-      if (leadType === "quote") trackConversion("quote_form_submit", { ...leadDetails, value: 6 });
-      if (leadType === "general") trackConversion("general_form_submit", { ...leadDetails, value: 4 });
-      if (/appointment|wedding|express|fitting/i.test(service)) trackConversion("appointment_request", { ...leadDetails, value: 5 });
-      if (/quote|shirt|ladies|shipping|reorder|suit/i.test(service)) trackConversion("quote_request", { ...leadDetails, value: 5 });
-      if (/wedding|groom|group/i.test(service)) trackConversion("wedding_lead", { ...leadDetails, value: 8 });
-      if (/remote|shipping|reorder|measurement/i.test(service)) trackConversion("remote_order_lead", { ...leadDetails, value: 6 });
+      submit.disabled = true;
+      notice.textContent = "Saving your enquiry...";
+      notice.dataset.tone = "";
+      notice.classList.add("show");
+
+      try {
+        const response = await fetch("/api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await parseApiResponse(response);
+        if (!response.ok) throw new Error(result.error || "Unable to save this enquiry.");
+
+        const savedDetails = { ...leadDetails, lead_id: result.lead && result.lead.id };
+        notice.textContent = leadType === "appointment"
+          ? "Thank you. Your appointment request has been saved. Please also message us on WhatsApp for the fastest confirmation."
+          : "Thank you. Your enquiry has been saved. Please also message us on WhatsApp for the fastest reply.";
+        notice.dataset.tone = "success";
+
+        trackConversion("lead_form_submit", { ...savedDetails, value: 5 });
+        if (leadType === "appointment") trackConversion("appointment_form_submit", { ...savedDetails, value: 8 });
+        if (leadType === "quote") trackConversion("quote_form_submit", { ...savedDetails, value: 6 });
+        if (leadType === "general") trackConversion("general_form_submit", { ...savedDetails, value: 4 });
+        if (/appointment|wedding|express|fitting/i.test(service)) trackConversion("appointment_request", { ...savedDetails, value: 5 });
+        if (/quote|shirt|ladies|shipping|reorder|suit/i.test(service)) trackConversion("quote_request", { ...savedDetails, value: 5 });
+        if (/wedding|groom|group/i.test(service)) trackConversion("wedding_lead", { ...savedDetails, value: 8 });
+        if (/remote|shipping|reorder|measurement/i.test(service)) trackConversion("remote_order_lead", { ...savedDetails, value: 6 });
+      } catch (error) {
+        notice.textContent = `${error.message} Please call or WhatsApp the shop if this keeps happening.`;
+        notice.dataset.tone = "error";
+      } finally {
+        submit.disabled = false;
+      }
     };
   }
 }
